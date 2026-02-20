@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "verify-mcp-server"
+version = "1.0.0"
+description = "MCP server for IBM Security Verify — 200+ REST API endpoints via 4 intelligent tools"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [
+    { name = "Anuj Shrivastava", email = "ashrivastava@in.ibm.com" },
+    { name = "Rahul K P", email = "rahul.k.p@ibm.com" },
+]
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+verify-mcp-server = "src.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
