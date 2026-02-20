@@ -14,7 +14,7 @@ Verify MCP Server bridges **Large Language Models (LLMs)** and **IBM Security Ve
 | ~50,000 tokens/request | **~2,000 tokens/request** |
 | Context overflow risk | Fits any LLM context |
 
-Works with any MCP-compatible client: VS Code Copilot, Claude Desktop, custom AI agents, or direct HTTP calls.
+Works with any MCP-compatible client: Claude Desktop, VS Code, custom AI agents, or direct HTTP calls.
 
 ---
 
@@ -82,10 +82,12 @@ That's it — the MCP server is running and ready to use.
 
 The LLM follows a **discover → inspect → execute** pattern:
 
-```
-1. verify_discover("users")           → finds user-related endpoints
-2. verify_get_api_details("getUsers") → gets params, body schema, auth requirements
-3. verify_execute("GET", "/v2.0/Users") → returns actual user data
+```mermaid
+flowchart LR
+    S1["① verify_discover\n───────────\nsearch: 'users'\n→ matching endpoints"] --> S2["② verify_get_api_details\n───────────\nendpoint_id: getUsers\n→ full param schema"] --> S3["③ verify_execute\n───────────\nGET /v2.0/Users\n→ actual user data"]
+    style S1 fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style S2 fill:#fef3c7,stroke:#f59e0b,color:#451a03
+    style S3 fill:#d1fae5,stroke:#10b981,color:#064e3b
 ```
 
 After the first discovery, the LLM **learns the pattern** and stops calling discover — further reducing tokens in multi-turn conversations.
@@ -144,21 +146,6 @@ curl -X POST http://localhost:8004/tools/call \
 
 ```bash
 curl http://localhost:8004/tools
-```
-
-### With VS Code Copilot (SSE Mode)
-
-Add to `.vscode/mcp.json` in your workspace:
-
-```json
-{
-  "servers": {
-    "verify": {
-      "type": "sse",
-      "url": "http://localhost:8004/sse"
-    }
-  }
-}
 ```
 
 ### With Claude Desktop (stdio Mode)
@@ -259,7 +246,7 @@ docker run -d --name verify-mcp -p 8004:8004 \
 
 ```mermaid
 flowchart TB
-    subgraph CLIENT["MCP Client (LLM / VS Code Copilot / Claude Desktop)"]
+    subgraph CLIENT["MCP Client (LLM / Claude Desktop / AI Agents)"]
         U([User Prompt])
     end
 
@@ -277,8 +264,8 @@ flowchart TB
 
         subgraph AUTH["OAuth2 Token Handling"]
             direction LR
-            CC["client_credentials Grant\n→ /v1.0/endpoint/default/token\n→ Bearer Token"]
-            CACHE["Token Cache\nAuto-refresh before\nexpiry"]
+            CC["② client_credentials Grant\n→ /v1.0/endpoint/default/token\n→ Bearer Token"]
+            CACHE["② Token Cache\nAuto-refresh before\nexpiry"]
         end
 
         CC --> CACHE
@@ -297,9 +284,9 @@ flowchart TB
         end
     end
 
-    U -->|"HTTP/SSE or stdio"| T
-    T --> T1 & T2 & T3 & T4
-    T1 & T2 & T3 & T4 -->|"HTTPS + Bearer token"| API
+    U -->|"① HTTP/SSE or stdio"| T
+    T -->|"③ dispatch to tool"| T1 & T2 & T3 & T4
+    T1 & T2 & T3 & T4 -->|"④ HTTPS + Bearer token"| API
     API --- CATEGORIES
 ```
 
@@ -311,40 +298,62 @@ sequenceDiagram
     participant MCP as MCP Server
     participant Verify as IBM Verify API
 
-    Note over MCP: OAuth2 client_credentials grant
-    MCP->>Verify: POST /v1.0/endpoint/default/token
-    Verify-->>MCP: Bearer token (cached)
+    rect rgb(240, 248, 255)
+        Note over MCP,Verify: Step ①  Auth — OAuth2 client_credentials grant
+        MCP->>Verify: POST /v1.0/endpoint/default/token
+        Verify-->>MCP: Bearer token (cached, auto-refreshed)
+    end
 
-    User->>MCP: verify_discover(search="users")
-    MCP-->>User: Matching endpoints with schemas
+    rect rgb(255, 251, 235)
+        Note over User,MCP: Step ②  Discover — find relevant endpoints
+        User->>MCP: verify_discover(search="users")
+        MCP-->>User: Matching endpoints with schemas
+    end
 
-    User->>MCP: verify_get_api_details(endpoint_id="getUsers")
-    MCP-->>User: Full params: count, startIndex, filter, sortBy...
+    rect rgb(255, 243, 205)
+        Note over User,MCP: Step ③  Inspect — get full parameter schema
+        User->>MCP: verify_get_api_details(endpoint_id="getUsers")
+        MCP-->>User: Full params: count, startIndex, filter, sortBy...
+    end
 
-    User->>MCP: verify_execute(method="GET", endpoint="/v2.0/Users", params={count: 10})
-    MCP->>Verify: GET /v2.0/Users?count=10 [Bearer token]
-    Verify-->>MCP: SCIM user list
-    MCP-->>User: JSON results
+    rect rgb(209, 250, 229)
+        Note over User,Verify: Step ④  Execute — read
+        User->>MCP: verify_execute(method="GET", endpoint="/v2.0/Users", params={count: 10})
+        MCP->>Verify: GET /v2.0/Users?count=10 [Bearer token]
+        Verify-->>MCP: SCIM user list
+        MCP-->>User: JSON results
+    end
 
-    User->>MCP: verify_execute(method="POST", endpoint="/v2.0/Users", body={...})
-    MCP->>Verify: POST /v2.0/Users [Bearer token]
-    Verify-->>MCP: Created user
-    MCP-->>User: New user details
+    rect rgb(220, 240, 255)
+        Note over User,Verify: Step ⑤  Execute — write
+        User->>MCP: verify_execute(method="POST", endpoint="/v2.0/Users", body={...})
+        MCP->>Verify: POST /v2.0/Users [Bearer token]
+        Verify-->>MCP: Created user
+        MCP-->>User: New user details
+    end
 ```
 
 ### Token Efficiency
 
 ```mermaid
 graph LR
-    subgraph NAIVE["❌ Naive: 1 Tool per Endpoint"]
-        A["200+ tool definitions\n~50,000 tokens/request\nContext overflow"]
+    subgraph NAIVE["❌ Without Verify MCP Server"]
+        direction TB
+        NA["200+ tool definitions"]
+        NB["🔴 ~50,000 tokens per request"]
+        NC["🔴 Context window overflow"]
+        ND["🔴 LLM must choose from 200+ tools"]
     end
 
-    subgraph META["✅ Meta-Tool Pattern"]
-        B["4 tool definitions\n~2,000 tokens/request\n98% reduction"]
+    subgraph META["✅ With Verify MCP Server"]
+        direction TB
+        MA["4 tool definitions"]
+        MB["🟢 ~2,000 tokens per request"]
+        MC["🟢 Fits any LLM context window"]
+        MD["🟢 10-turn chat saves ~480,000 tokens"]
     end
 
-    NAIVE -.->|"replaced by"| META
+    NAIVE -.->|"98% token reduction"| META
 ```
 
 In a **10-turn conversation**, this saves approximately **480,000 tokens** compared to the per-endpoint approach.
@@ -362,7 +371,7 @@ In a **10-turn conversation**, this saves approximately **480,000 tokens** compa
 **Need help?**
 
 - Check container logs: `docker logs verify-mcp`
-- Contact: [ashrivastava@in.ibm.com](mailto:ashrivastava@in.ibm.com), [rahul.k.p@ibm.com](mailto:rahul.k.p@ibm.com)
+- Contact: [ashrivastava@in.ibm.com](mailto:ashrivastava@in.ibm.com), [Suraj.Kanth@ibm.com](mailto:Suraj.Kanth@ibm.com)
 
 ---
 
