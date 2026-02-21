@@ -1,7 +1,10 @@
-"""IBM Security Verify MCP Server — FastMCP bootstrap.
+"""IBM Security Verify MCP Server — FastMCP bootstrap with API-key auth.
 
 Wires together config, auth, HTTP client, discovery, and tools into a
 single MCP server that supports both stdio and SSE transports.
+
+SSE mode is protected by API-key authentication (same model as the
+GDP MCP Server — "Model B: Admin-Managed Key Store").
 
 Usage:
   # stdio mode (default — for Claude Desktop / VS Code)
@@ -14,16 +17,24 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import sys
 
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
 
 from .auth import VerifyAuth
 from .client import VerifyClient
 from .config import VerifyConfig
 from .discovery import VerifyDiscovery
+from .keystore import KeyStore
 from .tools import register_tools
 
 logger = logging.getLogger(__name__)
@@ -32,7 +43,7 @@ logger = logging.getLogger(__name__)
 SERVER_NAME = "Verify MCP Server"
 SERVER_VERSION = "1.0.0"
 SSE_HOST = "0.0.0.0"
-SSE_PORT = int(os.getenv("MCP_PORT", "8004"))
+SSE_PORT = int(os.getenv("MCP_PORT", "8005"))
 
 # Instructions shown to the LLM at the start of a session
 SERVER_INSTRUCTIONS = """\
@@ -59,6 +70,140 @@ Tips:
   - Always check verify_get_api_details for required fields before executing
 """
 
+# ── Singleton key store (initialised once, shared by middleware + admin) ──
+_key_store: KeyStore | None = None
+
+
+def _get_key_store() -> KeyStore:
+    """Return (and lazily create) the global KeyStore singleton."""
+    global _key_store
+    if _key_store is None:
+        _key_store = KeyStore()
+    return _key_store
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  API-Key Authentication Middleware (Starlette)
+# ═══════════════════════════════════════════════════════════════════════
+
+class APIKeyMiddleware(BaseHTTPMiddleware):
+    """Require a valid API key in the Authorization header for /sse.
+
+    Public (unauthenticated) routes:
+        /health            — liveness probe
+        /admin/keys        — admin key management (localhost-only)
+
+    Protected routes:
+        /sse               — MCP SSE transport (requires valid API key)
+        /messages          — MCP message posting (requires valid API key)
+    """
+
+    OPEN_PREFIXES = ("/health", "/admin/keys")
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+
+        # Allow public endpoints through without auth
+        if any(path.startswith(prefix) for prefix in self.OPEN_PREFIXES):
+            return await call_next(request)
+
+        # Everything else requires a valid API key
+        ks = _get_key_store()
+
+        # If no keys have been generated yet, allow open access
+        # (first-run experience — admin should generate a key immediately)
+        if not ks.has_any_keys():
+            return await call_next(request)
+
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header:
+            return JSONResponse(
+                {"error": "Authorization header required"},
+                status_code=401,
+            )
+
+        # Accept "Bearer <key>" or raw "<key>"
+        raw_key = auth_header.removeprefix("Bearer ").strip()
+        if not raw_key:
+            return JSONResponse(
+                {"error": "Authorization header required"},
+                status_code=401,
+            )
+
+        if not ks.validate(raw_key):
+            return JSONResponse(
+                {"error": "Invalid API key"},
+                status_code=401,
+            )
+
+        return await call_next(request)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Admin Endpoints (localhost-only)
+# ═══════════════════════════════════════════════════════════════════════
+
+def _is_localhost(request: Request) -> bool:
+    """Return True if the request originates from localhost."""
+    client = request.client
+    if client is None:
+        return False
+    return client.host in ("127.0.0.1", "::1", "localhost")
+
+
+async def admin_create_key(request: Request) -> JSONResponse:
+    """POST /admin/keys — Generate a new API key (localhost-only)."""
+    if not _is_localhost(request):
+        return JSONResponse({"error": "Admin endpoints are localhost-only"}, status_code=403)
+    try:
+        data = await request.json()
+        user = data.get("user", "anonymous")
+    except Exception:
+        user = "anonymous"
+
+    ks = _get_key_store()
+    raw_key = ks.generate(user)
+    return JSONResponse({
+        "api_key": raw_key,
+        "prefix": raw_key[:8],
+        "user": user,
+        "message": "Store this key securely — it will not be shown again.",
+    })
+
+
+async def admin_list_keys(request: Request) -> JSONResponse:
+    """GET /admin/keys — List all API keys (prefixes only, localhost-only)."""
+    if not _is_localhost(request):
+        return JSONResponse({"error": "Admin endpoints are localhost-only"}, status_code=403)
+    ks = _get_key_store()
+    return JSONResponse({"keys": ks.list_keys()})
+
+
+async def admin_revoke_key(request: Request) -> JSONResponse:
+    """DELETE /admin/keys/{prefix} — Revoke an API key (localhost-only)."""
+    if not _is_localhost(request):
+        return JSONResponse({"error": "Admin endpoints are localhost-only"}, status_code=403)
+    prefix = request.path_params["prefix"]
+    ks = _get_key_store()
+    if ks.revoke(prefix):
+        return JSONResponse({"message": f"Key {prefix}… revoked"})
+    return JSONResponse({"error": f"No key with prefix {prefix}"}, status_code=404)
+
+
+async def health(request: Request) -> JSONResponse:
+    """GET /health — Liveness probe (always public)."""
+    ks = _get_key_store()
+    return JSONResponse({
+        "status": "healthy",
+        "server": SERVER_NAME,
+        "version": SERVER_VERSION,
+        "auth_enabled": ks.has_any_keys(),
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Server Creation
+# ═══════════════════════════════════════════════════════════════════════
 
 def create_server() -> tuple[FastMCP, VerifyClient]:
     """Create and configure the MCP server instance.
@@ -119,9 +264,36 @@ def main() -> None:
     )
 
     if transport == "sse":
-        # FastMCP reads host/port from the constructor settings
+        import uvicorn
+
+        # Build the SSE ASGI app from FastMCP
+        sse_app = mcp.sse_app()
+
+        # Compose Starlette app: admin routes + health + MCP SSE transport
+        app = Starlette(
+            routes=[
+                Route("/health", health, methods=["GET"]),
+                Route("/admin/keys", admin_create_key, methods=["POST"]),
+                Route("/admin/keys", admin_list_keys, methods=["GET"]),
+                Route("/admin/keys/{prefix}", admin_revoke_key, methods=["DELETE"]),
+                # Mount the MCP SSE transport under /
+                Mount("/", app=sse_app),
+            ],
+            middleware=[Middleware(APIKeyMiddleware)],
+        )
+
+        ks = _get_key_store()
+        if ks.has_any_keys():
+            logger.info("API key authentication ENABLED (%d key(s) loaded)", len(ks.list_keys()))
+        else:
+            logger.warning(
+                "No API keys configured — SSE endpoint is OPEN. "
+                "Generate a key: curl -X POST http://localhost:%d/admin/keys -H 'Content-Type: application/json' -d '{\"user\":\"admin@ibm.com\"}'",
+                SSE_PORT,
+            )
+
         logger.info("SSE server listening on %s:%d", SSE_HOST, SSE_PORT)
-        mcp.run(transport="sse")
+        uvicorn.run(app, host=SSE_HOST, port=SSE_PORT, log_level=log_level.lower())
     else:
         mcp.run(transport="stdio")
 

@@ -13,14 +13,17 @@ RUN pip install --no-cache-dir .
 # Copy source code
 COPY src/ ./src/
 
-# Pre-define environment variables (users must set values)
-ENV VERIFY_TENANT=""
-ENV API_CLIENT_ID=""
-ENV API_CLIENT_SECRET=""
-ENV VERIFY_SSL="true"
+# Pre-define environment variables (users must set values at runtime via -e)
+ENV VERIFY_TENANT="" \
+    API_CLIENT_ID="" \
+    VERIFY_SSL="true"
+# Note: API_CLIENT_SECRET passed at runtime via -e (not baked into image)
+
+# Persistent volume for API key store (/data/keys.json)
+VOLUME /data
 
 # Expose HTTP port (used in SSE mode)
-EXPOSE 8004
+EXPOSE 8005
 
 # Default: stdio mode (for Claude Desktop / VS Code)
 # Use: --transport sse --host 0.0.0.0 --port 8004 for HTTP/SSE mode
