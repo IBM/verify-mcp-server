@@ -161,9 +161,13 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "getUserCardinality": {
                 "method": "GET",
-                "path": "/v2.0/Users/.search",
-                "description": "Retrieves the total number of users under a tenant",
-                "params": {},
+                "path": "/v2.0/Users",
+                "description": "Retrieves user list metadata; use ListResponse.totalResults for tenant user count",
+                "params": {
+                    "count": {"type": "integer", "required": False, "description": "Page size (set small to fetch only metadata)"},
+                    "startIndex": {"type": "integer", "required": False, "description": "1-based page start index"},
+                    "filter": {"type": "string", "required": False, "description": "SCIM filter expression"},
+                },
                 "body": {},
             },
             "resetUserPassword": {
@@ -354,9 +358,13 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "getGroupCardinality": {
                 "method": "GET",
-                "path": "/v2.0/Groups/.search",
-                "description": "Retrieves the total number of groups",
-                "params": {},
+                "path": "/v2.0/Groups",
+                "description": "Retrieves group list metadata; use ListResponse.totalResults for group count",
+                "params": {
+                    "count": {"type": "integer", "required": False, "description": "Page size (set small to fetch only metadata)"},
+                    "startIndex": {"type": "integer", "required": False, "description": "1-based page start index"},
+                    "filter": {"type": "string", "required": False, "description": "SCIM filter expression"},
+                },
                 "body": {},
             },
         },

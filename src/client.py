@@ -75,6 +75,15 @@ class VerifyClient:
                     http, method, url, params, body, req_headers
                 )
 
+            if self._is_verify_login_html(resp):
+                return {
+                    "status": "error",
+                    "error_code": "AUTH_REDIRECT_DETECTED",
+                    "http_code": resp.status_code,
+                    "message": "Verify returned an interactive login HTML page instead of API JSON.",
+                    "hint": "Token may lack scope/permission for this endpoint or session/auth context is invalid.",
+                }
+
             resp.raise_for_status()
 
             if resp.status_code == 204 or not resp.content:
@@ -111,3 +120,19 @@ class VerifyClient:
             return await http.request(
                 method_upper, url, params=params, headers=headers
             )
+
+    @staticmethod
+    def _is_verify_login_html(resp: httpx.Response) -> bool:
+        """Detect Verify interactive login HTML returned to API calls."""
+        content_type = (resp.headers.get("content-type") or "").lower()
+        if "text/html" not in content_type and "application/xhtml+xml" not in content_type:
+            return False
+
+        body = resp.text[:4000].lower()
+        login_markers = (
+            "<html",
+            "/idaas/mtfim/sps/idaas/login",
+            "runtime=true",
+            "location.href",
+        )
+        return all(marker in body for marker in login_markers)
