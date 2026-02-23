@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "verify-mcp-server"
 version = "1.0.0"
-description = "MCP server for IBM Security Verify — 200+ REST API endpoints via 4 intelligent tools"
+description = "MCP server for IBM Security Verify — 210 REST API endpoints via 4 intelligent tools"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [

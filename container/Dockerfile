@@ -23,7 +23,7 @@ ENV VERIFY_TENANT="" \
 VOLUME /data
 
 # Expose HTTP port (used in SSE mode)
-EXPOSE 8005
+EXPOSE 8004
 
 # Default: stdio mode (for Claude Desktop / VS Code)
 # Use: --transport sse --host 0.0.0.0 --port 8004 for HTTP/SSE mode

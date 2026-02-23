@@ -1,18 +1,19 @@
 # Verify MCP Server
 
-**Model Context Protocol (MCP) server for IBM Security Verify** — Access 200+ IBM Verify REST API endpoints through just 4 intelligent MCP tools.
+**Model Context Protocol (MCP) server for IBM Security Verify** — Access 210 IBM Verify REST API endpoints through just 4 intelligent MCP tools.
 
 ---
 
 ## What is This?
 
-Verify MCP Server bridges **Large Language Models (LLMs)** and **IBM Security Verify (IDaaS)**. Instead of exposing 200+ API endpoints as separate tools (which would overwhelm any LLM context window), this server consolidates them into **4 intelligent tools** — achieving a **98% reduction** in token usage.
+Verify MCP Server bridges **Large Language Models (LLMs)** and **IBM Security Verify (IDaaS)**. Instead of exposing 210 API endpoints as separate tools (which would overwhelm any LLM context window), this server consolidates them into **4 intelligent tools** — achieving a **98% reduction** in token usage.
 
 | Traditional Approach | Verify MCP Server |
 |---------------------|-------------------|
-| 200+ tool definitions | **4 tool definitions** |
-| ~50,000 tokens/request | **~2,000 tokens/request** |
+| 210 tool definitions | **4 tool definitions** |
+| ~50,000 tokens/request | **~500 tokens/request** |
 | Context overflow risk | Fits any LLM context |
+| All results returned | **Paginated (25/page), relevance-ranked** |
 
 Works with any MCP-compatible client: Claude Desktop, VS Code, custom AI agents, or direct HTTP calls.
 
@@ -29,10 +30,10 @@ Works with any MCP-compatible client: Claude Desktop, VS Code, custom AI agents,
 ### Step 1: Pull the Container
 
 ```bash
-docker pull ghcr.io/anujshrivastava15/verify-mcp-server:latest
+docker pull ghcr.io/ibm/verify-mcp-server:latest
 ```
 
-> Multi-arch image — works on Intel/AMD (x86_64) and Apple Silicon/ARM (aarch64).
+> Currently built for **linux/amd64** (Intel/AMD). Apple Silicon users can run via Docker's built-in Rosetta emulation.
 
 ### Step 2: Run the Container
 
@@ -43,7 +44,7 @@ docker run -d \
   -e VERIFY_TENANT="https://your-tenant.verify.ibm.com" \
   -e API_CLIENT_ID="your-api-client-id" \
   -e API_CLIENT_SECRET="your-api-client-secret" \
-  ghcr.io/anujshrivastava15/verify-mcp-server:latest
+  ghcr.io/ibm/verify-mcp-server:latest
 ```
 
 Replace:
@@ -60,7 +61,7 @@ curl http://localhost:8004/health
 Expected response:
 
 ```json
-{"status": "healthy", "mode": "http", "tools": 4, "categories": 83, "endpoints": 200}
+{"status": "healthy", "mode": "http", "tools": 4, "categories": 89, "endpoints": 210}
 ```
 
 That's it — the MCP server is running and ready to use.
@@ -73,8 +74,8 @@ That's it — the MCP server is running and ready to use.
 
 | Tool | Description | Use For |
 |------|-------------|---------|
-| `verify_discover` | Search endpoints by keyword or category | Find the right API for users, groups, MFA, policies |
-| `verify_list_categories` | List all 83 API categories with endpoint counts | Browse the full API surface |
+| `verify_discover` | Search endpoints by keyword or category | Find the right API — returns max 25 results, relevance-ranked. ≤3 matches auto-include full details. |
+| `verify_list_categories` | List all 89 API categories grouped by domain | Browse the full API surface by domain (Identity, MFA, Federation, etc.) |
 | `verify_get_api_details` | Get full parameter schema for a specific endpoint | Understand required params before calling |
 | `verify_execute` | Execute any Verify API endpoint | GET, POST, PUT, PATCH, DELETE any resource |
 
@@ -91,6 +92,11 @@ flowchart LR
 ```
 
 After the first discovery, the LLM **learns the pattern** and stops calling discover — further reducing tokens in multi-turn conversations.
+
+> **Token Optimisations**: Results are relevance-ranked (exact match > word boundary > substring),
+> paginated (max 25 per page with `offset`), and ≤3 matches auto-include full parameter
+> details — eliminating extra tool calls. Multi-category results are grouped by domain for
+> easier navigation.
 
 ### HTTP API Examples
 
@@ -162,7 +168,7 @@ Add to your Claude Desktop MCP config (`~/Library/Application Support/Claude/cla
         "-e", "VERIFY_TENANT=https://your-tenant.verify.ibm.com",
         "-e", "API_CLIENT_ID=your-api-client-id",
         "-e", "API_CLIENT_SECRET=your-api-client-secret",
-        "ghcr.io/anujshrivastava15/verify-mcp-server:latest",
+        "ghcr.io/ibm/verify-mcp-server:latest",
         "--stdio"
       ]
     }
@@ -202,7 +208,7 @@ Then ask things like:
 
 ## API Coverage
 
-### 83 API Categories — 200+ Endpoints
+### 89 API Categories — 210 Endpoints
 
 The Verify MCP Server covers the **complete** IBM Security Verify REST API surface:
 
@@ -256,8 +262,8 @@ flowchart TB
 
         subgraph TOOLS["4 MCP Tools"]
             direction LR
-            T1["verify_discover\n─────────────\nSearch 200+ endpoints\nby keyword/category\nvia hardcoded schema"]
-            T2["verify_list_categories\n─────────────\nBrowse all 83 API\ncategories with\nendpoint counts"]
+            T1["verify_discover\n─────────────\nSearch 210 endpoints\nby keyword/category\nvia hardcoded schema"]
+            T2["verify_list_categories\n─────────────\nBrowse all 89 API\ncategories with\nendpoint counts"]
             T3["verify_get_api_details\n─────────────\nFull parameter schema\nfor any endpoint\nbefore execution"]
             T4["verify_execute\n─────────────\nGET/POST/PUT/PATCH/DELETE\nAny Verify API\nendpoint"]
         end
@@ -272,7 +278,7 @@ flowchart TB
     end
 
     subgraph VERIFY["IBM Security Verify (IDaaS)"]
-        API["REST API\n200+ Endpoints"]
+        API["REST API\n210 Endpoints"]
         subgraph CATEGORIES["API Domains"]
             direction LR
             C1["Identity\nUsers · Groups\nSCIM v2.0"]
@@ -339,10 +345,10 @@ sequenceDiagram
 graph LR
     subgraph NAIVE["❌ Without Verify MCP Server"]
         direction TB
-        NA["200+ tool definitions"]
+        NA["210 tool definitions"]
         NB["🔴 ~50,000 tokens per request"]
         NC["🔴 Context window overflow"]
-        ND["🔴 LLM must choose from 200+ tools"]
+        ND["🔴 LLM must choose from 210 tools"]
     end
 
     subgraph META["✅ With Verify MCP Server"]
@@ -356,7 +362,7 @@ graph LR
     NAIVE -.->|"98% token reduction"| META
 ```
 
-In a **10-turn conversation**, this saves approximately **480,000 tokens** compared to the per-endpoint approach.
+In a **10-turn conversation**, this saves approximately **580,000 tokens** compared to the per-endpoint approach.
 
 ---
 

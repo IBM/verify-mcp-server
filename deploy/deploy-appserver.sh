@@ -5,14 +5,14 @@
 
 set -euo pipefail
 
-IMAGE="ghcr.io/anujshrivastava15/verify-mcp-server:latest"
+IMAGE="ghcr.io/ibm/verify-mcp-server:latest"
 CONTAINER="verify-mcp-server"
-PORT=8005
+PORT=8004
 
 # ── Env (fill in real values or copy from your .env) ─────────────────────────
 VERIFY_TENANT="${VERIFY_TENANT:-https://security-squad-gsilab.verify.ibm.com}"
-API_CLIENT_ID="${API_CLIENT_ID:-f61d84b1-4d03-4f4b-b328-cb0f735f311a}"
-API_CLIENT_SECRET="${API_CLIENT_SECRET:-c2nJBgSxVV}"
+API_CLIENT_ID="${API_CLIENT_ID:-165b94c5-9504-4e02-bd5f-5cfdcab0c1cd}"
+API_CLIENT_SECRET="${API_CLIENT_SECRET:-nNMTHEd0i4}"
 VERIFY_SSL="${VERIFY_SSL:-true}"
 
 echo "==> Pulling $IMAGE"

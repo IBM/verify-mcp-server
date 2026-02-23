@@ -7,8 +7,15 @@ Exposes four meta-tools that cover the entire Verify API surface:
   4. verify_execute        — execute any Verify API endpoint
 
 This is the same "meta-tool proxy" pattern used by the QRadar, GCM, and GDP
-MCP servers — instead of registering 200+ individual tools, we register only
+MCP servers — instead of registering 210 individual tools, we register only
 four generic tools, reducing per-request token overhead by ~98%.
+
+Token Optimisation Strategy:
+  - verify_discover returns max 25 results per page (with pagination)
+  - Results are relevance-ranked (exact match > word boundary > substring)
+  - ≤3 match queries auto-include full parameter details (saving round-trips)
+  - Multi-category results are grouped by domain for easier navigation
+  - verify_list_categories groups 89 categories into 9 domains
 """
 
 from __future__ import annotations
@@ -28,6 +35,10 @@ logger = logging.getLogger(__name__)
 MAX_RESPONSE_LENGTH = 50_000
 TRUNCATION_MSG = "\n\n⚠️ Response truncated at {limit} characters. Use filters or pagination to narrow results."
 
+# Maximum results per page for verify_discover
+# Show all if ≤ this threshold; paginate beyond it
+DEFAULT_PAGE_SIZE = 25
+
 
 def _truncate(text: str, limit: int = MAX_RESPONSE_LENGTH) -> str:
     """Truncate text if it exceeds the limit."""
@@ -36,15 +47,22 @@ def _truncate(text: str, limit: int = MAX_RESPONSE_LENGTH) -> str:
     return text[:limit] + TRUNCATION_MSG.format(limit=limit)
 
 
-def _format_endpoint_summary(ep: VerifyEndpoint) -> dict[str, str]:
-    """Return a compact summary dict for search results."""
-    return {
+def _format_endpoint_summary(ep: VerifyEndpoint, include_category: bool = False) -> dict[str, str]:
+    """Return a summary dict for search results.
+
+    Keeps full description so the LLM has enough context to pick the
+    right endpoint.  Category is included when results span multiple
+    categories (set *include_category=True*).
+    """
+    summary: dict[str, str] = {
         "endpoint_id": ep.endpoint_id,
         "method": ep.method,
         "path": ep.path,
-        "category": ep.category,
-        "description": ep.description,
     }
+    if include_category:
+        summary["category"] = ep.category
+    summary["description"] = ep.description
+    return summary
 
 
 def _format_endpoint_detail(ep: VerifyEndpoint) -> dict[str, Any]:
@@ -97,21 +115,24 @@ def register_tools(
         query: str,
         category: str | None = None,
         method: str | None = None,
+        offset: int = 0,
     ) -> str:
         """Search IBM Security Verify API endpoints by keyword, category, or HTTP method.
 
-        Use this tool FIRST to find which endpoints are available before
-        calling verify_get_api_details or verify_execute.
+        Results are ranked by relevance and grouped by category when spanning
+        multiple categories.  If 1-3 matches are found, full parameter details
+        are included automatically (no need to call verify_get_api_details).
+        Queries with >25 results are paginated — use offset to page through.
 
         Args:
-            query: Keyword to search in endpoint names, paths, and descriptions
-                   (e.g., "user", "group", "mfa", "consent", "token")
+            query: Keyword to search (e.g., "user", "group", "mfa", "consent")
             category: Optional category filter (e.g., "Users Management", "FIDO2")
             method: Optional HTTP method filter (GET, POST, PUT, PATCH, DELETE)
+            offset: Pagination offset — skip this many results (default: 0)
 
         Returns:
-            JSON array of matching endpoints with endpoint_id, method, path,
-            category, and description.
+            JSON with matching endpoints grouped by category.  ≤3 matches
+            include full parameter/body details.  >25 matches are paginated.
         """
         results = discovery.search(query, category=category, method=method)
         if not results:
@@ -120,32 +141,96 @@ def register_tools(
                 "hint": "Try broader keywords or use verify_list_categories to browse",
                 "total_available": discovery.total_endpoints,
             })
-        summaries = [_format_endpoint_summary(ep) for ep in results]
-        output = json.dumps({
-            "matches": len(summaries),
-            "total_available": discovery.total_endpoints,
-            "endpoints": summaries,
-        }, indent=2)
-        return _truncate(output)
+
+        total_matches = len(results)
+
+        # ≤3 matches → auto-include full details (saves round-trips)
+        if total_matches <= 3:
+            details = [_format_endpoint_detail(ep) for ep in results]
+            return json.dumps({
+                "matches": total_matches,
+                "endpoints": details,
+            }, indent=2)
+
+        # Check if results span multiple categories
+        categories_seen = {ep.category for ep in results}
+        multi_category = len(categories_seen) > 1
+
+        # ≤ page size → return all; otherwise paginate
+        if total_matches <= DEFAULT_PAGE_SIZE:
+            page = results
+        else:
+            page = results[offset : offset + DEFAULT_PAGE_SIZE]
+
+        # Group results by category for easier navigation
+        if multi_category:
+            grouped: dict[str, list[dict]] = {}
+            for ep in page:
+                summary = _format_endpoint_summary(ep, include_category=False)
+                grouped.setdefault(ep.category, []).append(summary)
+            response: dict[str, Any] = {
+                "matches": total_matches,
+                "by_category": grouped,
+            }
+        else:
+            summaries = [_format_endpoint_summary(ep, include_category=False) for ep in page]
+            response = {
+                "matches": total_matches,
+                "category": page[0].category if page else "",
+                "endpoints": summaries,
+            }
+
+        if total_matches > DEFAULT_PAGE_SIZE:
+            response["showing"] = f"{offset + 1}-{offset + len(page)} of {total_matches}"
+            if (offset + DEFAULT_PAGE_SIZE) < total_matches:
+                response["next_offset"] = offset + DEFAULT_PAGE_SIZE
+
+        return json.dumps(response)
 
     # ── Tool 2: List categories ─────────────────────────────────────
 
     @mcp.tool()
     async def verify_list_categories() -> str:
-        """List all IBM Security Verify API categories and the number of endpoints in each.
+        """List all IBM Security Verify API categories grouped by domain.
 
         Use this tool to browse the full API surface and identify relevant
         categories before searching with verify_discover.
 
         Returns:
-            JSON object with categories (name → endpoint count) and totals.
+            JSON object with categories grouped by domain, plus totals.
         """
         cats = discovery.categories
+        # Group categories by domain for a more compact, navigable output
+        domains: dict[str, dict[str, int]] = {}
+        for name, count in sorted(cats.items()):
+            # Derive domain from category name heuristics
+            name_lower = name.lower()
+            if any(k in name_lower for k in ("user", "scim", "group", "bulk", "identity", "dynamic group", "self care")):
+                domain = "Identity"
+            elif any(k in name_lower for k in ("otp", "mfa", "fido", "totp", "qr", "knowledge", "signature", "authenticat", "recaptcha", "smartcard", "x.509")):
+                domain = "MFA"
+            elif any(k in name_lower for k in ("saml", "federation", "oidc", "wsfed", "ws-fed", "social", "jwt")):
+                domain = "Federation"
+            elif any(k in name_lower for k in ("access", "polic", "entitlement", "session")):
+                domain = "Access & Policy"
+            elif any(k in name_lower for k in ("consent", "privacy", "dpcm", "purpose", "data subject")):
+                domain = "Privacy & Consent"
+            elif any(k in name_lower for k in ("event", "report", "log", "webhook", "threat", "itdr")):
+                domain = "Operations"
+            elif any(k in name_lower for k in ("campaign", "certification", "governance")):
+                domain = "Governance"
+            elif any(k in name_lower for k in ("password", "dictionary", "tenant", "theme", "template", "client", "config", "adapter", "provisioning", "certificate", "push", "email sup")):
+                domain = "Configuration"
+            else:
+                domain = "Other"
+            domains.setdefault(domain, {})[name] = count
+
+        # Build compact output: domain → {category: count}
         output = json.dumps({
             "total_categories": len(cats),
             "total_endpoints": discovery.total_endpoints,
-            "categories": {name: count for name, count in sorted(cats.items())},
-        }, indent=2)
+            "domains": domains,
+        })
         return _truncate(output)
 
     # ── Tool 3: Get API details ─────────────────────────────────────

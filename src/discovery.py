@@ -958,7 +958,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "evictSessions": {
                 "method": "POST",
-                "path": "/v1.0/sessions/evict",
+                "path": "/v1.0/auth/sessions",
                 "description": "Evict (terminate) user sessions",
                 "params": {},
                 "body": {
@@ -973,7 +973,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "exchangeToken": {
                 "method": "POST",
-                "path": "/v1.0/auth/token",
+                "path": "/v1.0/auth/session",
                 "description": "Exchange an authentication token",
                 "params": {},
                 "body": {},
@@ -1003,21 +1003,21 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listFederations": {
                 "method": "GET",
-                "path": "/v1.0/federations",
+                "path": "/v1.0/saml/federations",
                 "description": "List all SAML 2.0 federations",
                 "params": {},
                 "body": {},
             },
             "createFederation": {
                 "method": "POST",
-                "path": "/v1.0/federations",
+                "path": "/v1.0/saml/federations",
                 "description": "Create a SAML 2.0 federation",
                 "params": {},
                 "body": {},
             },
             "getFederation": {
                 "method": "GET",
-                "path": "/v1.0/federations/{id}",
+                "path": "/v1.0/saml/federations/{id}",
                 "description": "Get a specific federation",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Federation ID"},
@@ -1026,7 +1026,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "updateFederation": {
                 "method": "PUT",
-                "path": "/v1.0/federations/{id}",
+                "path": "/v1.0/saml/federations/{id}",
                 "description": "Update a federation",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Federation ID"},
@@ -1035,7 +1035,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "deleteFederation": {
                 "method": "DELETE",
-                "path": "/v1.0/federations/{id}",
+                "path": "/v1.0/saml/federations/{id}",
                 "description": "Delete a federation",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Federation ID"},
@@ -1050,21 +1050,21 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listAliases": {
                 "method": "GET",
-                "path": "/v1.0/aliases",
+                "path": "/v1.0/saml/alias",
                 "description": "List all SAML 2.0 aliases",
                 "params": {},
                 "body": {},
             },
             "createAlias": {
                 "method": "POST",
-                "path": "/v1.0/aliases",
+                "path": "/v1.0/saml/alias",
                 "description": "Create a SAML alias",
                 "params": {},
                 "body": {},
             },
             "deleteAlias": {
                 "method": "DELETE",
-                "path": "/v1.0/aliases/{id}",
+                "path": "/v1.0/saml/alias/{id}",
                 "description": "Delete a SAML alias",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Alias ID"},
@@ -1079,7 +1079,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listSPAliases": {
                 "method": "GET",
-                "path": "/v1.0/spaliases",
+                "path": "/v1.0/saml/spalias",
                 "description": "List all SAML 2.0 SP aliases",
                 "params": {},
                 "body": {},
@@ -1092,14 +1092,14 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getOIDCFederationSettings": {
                 "method": "GET",
-                "path": "/v1.0/oidcfederation/settings",
+                "path": "/v1.0/oidc/federation",
                 "description": "Read OIDC federation settings",
                 "params": {},
                 "body": {},
             },
             "updateOIDCFederationSettings": {
                 "method": "PUT",
-                "path": "/v1.0/oidcfederation/settings",
+                "path": "/v1.0/oidc/federation",
                 "description": "Update OIDC federation settings",
                 "params": {},
                 "body": {},
@@ -1112,7 +1112,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listGrants": {
                 "method": "GET",
-                "path": "/v1.0/oidc/grants",
+                "path": "/v1.0/appgrants",
                 "description": "List all OIDC grants",
                 "params": {},
                 "body": {},
@@ -1125,7 +1125,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getClientProfile": {
                 "method": "GET",
-                "path": "/v1.0/oidc/clientprofiles",
+                "path": "/v1.0/dynamic-client-profile",
                 "description": "Read dynamic client profile",
                 "params": {},
                 "body": {},
@@ -1138,9 +1138,11 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listClientSecrets": {
                 "method": "GET",
-                "path": "/v1.0/oidc/clientsecrets",
+                "path": "/v2.0/clients/{id}/secrets",
                 "description": "Read client secrets for rotation",
-                "params": {},
+                "params": {
+                    "id": {"type": "string", "required": True, "description": "API client ID"},
+                },
                 "body": {},
             },
         },
@@ -1151,7 +1153,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listSTSClients": {
                 "method": "GET",
-                "path": "/v1.0/oidc/stsclients",
+                "path": "/v1.0/sts/oauth/clients",
                 "description": "Read STS clients",
                 "params": {},
                 "body": {},
@@ -1164,7 +1166,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listTokenTypes": {
                 "method": "GET",
-                "path": "/v1.0/oidc/tokentypes",
+                "path": "/v1.0/sts/tokentypes",
                 "description": "Read token types",
                 "params": {},
                 "body": {},
@@ -1177,7 +1179,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getWSFedSettings": {
                 "method": "GET",
-                "path": "/v1.0/wsfed/settings",
+                "path": "/v1.0/wsf/federations/trace",
                 "description": "Get WS-Federation settings",
                 "params": {},
                 "body": {},
@@ -1190,14 +1192,14 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getAttributeMappings": {
                 "method": "GET",
-                "path": "/v1.0/attributemappings",
+                "path": "/v1.0/config/identitysources/attributemappings",
                 "description": "Get global IdP attribute mapping configuration",
                 "params": {},
                 "body": {},
             },
             "updateAttributeMappings": {
                 "method": "PUT",
-                "path": "/v1.0/attributemappings",
+                "path": "/v1.0/config/identitysources/attributemappings",
                 "description": "Update IdP attribute mappings",
                 "params": {},
                 "body": {},
@@ -1214,21 +1216,21 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listAccessPolicies": {
                 "method": "GET",
-                "path": "/v5.0/accesspolicies",
+                "path": "/v5.0/policyvault/accesspolicy",
                 "description": "List all access policies",
                 "params": {},
                 "body": {},
             },
             "createAccessPolicy": {
                 "method": "POST",
-                "path": "/v5.0/accesspolicies",
+                "path": "/v5.0/policyvault/accesspolicy",
                 "description": "Create a new access policy",
                 "params": {},
                 "body": {},
             },
             "getAccessPolicy": {
                 "method": "GET",
-                "path": "/v5.0/accesspolicies/{id}",
+                "path": "/v5.0/policyvault/accesspolicy/{id}",
                 "description": "Get a specific access policy",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Policy ID"},
@@ -1237,7 +1239,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "updateAccessPolicy": {
                 "method": "PUT",
-                "path": "/v5.0/accesspolicies/{id}",
+                "path": "/v5.0/policyvault/accesspolicy/{id}",
                 "description": "Update an access policy",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Policy ID"},
@@ -1246,7 +1248,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "deleteAccessPolicy": {
                 "method": "DELETE",
-                "path": "/v5.0/accesspolicies/{id}",
+                "path": "/v5.0/policyvault/accesspolicy/{id}",
                 "description": "Delete an access policy",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Policy ID"},
@@ -1289,9 +1291,11 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getEntitlementRightValuesV2": {
                 "method": "GET",
-                "path": "/v2.0/entitlements",
+                "path": "/v2.0/assignments/{assignment}/rights",
                 "description": "Get assignment right values (v2)",
-                "params": {},
+                "params": {
+                    "assignment": {"type": "string", "required": True, "description": "Assignment ID"},
+                },
                 "body": {},
             },
         },
@@ -1302,9 +1306,11 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getSelfEntitlements": {
                 "method": "GET",
-                "path": "/v2.0/access/entitlements",
+                "path": "/v1.0/access/entitlements/{entitlement}/children",
                 "description": "Get entitlement children for self",
-                "params": {},
+                "params": {
+                    "entitlement": {"type": "string", "required": True, "description": "Entitlement ID"},
+                },
                 "body": {},
             },
         },
@@ -1315,9 +1321,11 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getRequestableAccess": {
                 "method": "GET",
-                "path": "/v1.0/accessrequests",
+                "path": "/v1.0/access/entitlements/{entitlement}",
                 "description": "Get requestable access details for the current user",
-                "params": {},
+                "params": {
+                    "entitlement": {"type": "string", "required": True, "description": "Entitlement ID"},
+                },
                 "body": {},
             },
         },
@@ -1544,14 +1552,14 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getAccountExpirationConfig": {
                 "method": "GET",
-                "path": "/v1.0/accountexpirationconfig",
+                "path": "/v1.0/config/accountexpiration",
                 "description": "Get account expiration global configuration",
                 "params": {},
                 "body": {},
             },
             "updateAccountExpirationConfig": {
                 "method": "PUT",
-                "path": "/v1.0/accountexpirationconfig",
+                "path": "/v1.0/config/accountexpiration",
                 "description": "Update account expiration configuration",
                 "params": {},
                 "body": {},
@@ -1564,14 +1572,14 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getPasswordPolicy": {
                 "method": "GET",
-                "path": "/v2.0/passwordpolicies",
+                "path": "/v3.0/PasswordPolicies",
                 "description": "Get password policy for the tenant",
                 "params": {},
                 "body": {},
             },
             "updatePasswordPolicy": {
                 "method": "PUT",
-                "path": "/v2.0/passwordpolicies",
+                "path": "/v3.0/PasswordPolicies",
                 "description": "Update the password policy",
                 "params": {},
                 "body": {},
@@ -1584,21 +1592,21 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listPasswordPolicies": {
                 "method": "GET",
-                "path": "/v3.0/passwordpolicies",
+                "path": "/v3.0/PasswordPolicies",
                 "description": "List all password policies",
                 "params": {},
                 "body": {},
             },
             "createPasswordPolicy": {
                 "method": "POST",
-                "path": "/v3.0/passwordpolicies",
+                "path": "/v3.0/PasswordPolicies",
                 "description": "Create a password policy",
                 "params": {},
                 "body": {},
             },
             "getPasswordPolicyV3": {
                 "method": "GET",
-                "path": "/v3.0/passwordpolicies/{id}",
+                "path": "/v3.0/PasswordPolicies/{id}",
                 "description": "Get a specific password policy",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Policy ID"},
@@ -1607,7 +1615,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "updatePasswordPolicyV3": {
                 "method": "PUT",
-                "path": "/v3.0/passwordpolicies/{id}",
+                "path": "/v3.0/PasswordPolicies/{id}",
                 "description": "Update a password policy",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Policy ID"},
@@ -1616,7 +1624,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "deletePasswordPolicyV3": {
                 "method": "DELETE",
-                "path": "/v3.0/passwordpolicies/{id}",
+                "path": "/v3.0/PasswordPolicies/{id}",
                 "description": "Delete a password policy",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Policy ID"},
@@ -1631,7 +1639,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getDictPolicy": {
                 "method": "GET",
-                "path": "/v3.0/dictionarypolicies",
+                "path": "/v3.0/DictionaryPolicy",
                 "description": "Get dictionary policy",
                 "params": {},
                 "body": {},
@@ -1644,14 +1652,14 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listPasswordDictionaries": {
                 "method": "GET",
-                "path": "/v3.0/passworddictionaries",
+                "path": "/v3.0/PasswordDictionary",
                 "description": "List password dictionaries",
                 "params": {},
                 "body": {},
             },
             "deletePasswordDictionary": {
                 "method": "DELETE",
-                "path": "/v3.0/passworddictionaries/{id}",
+                "path": "/v3.0/PasswordDictionary/{id}",
                 "description": "Delete a password dictionary",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Dictionary ID"},
@@ -1666,14 +1674,14 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getTenantProperties": {
                 "method": "GET",
-                "path": "/v2.0/tenantproperties",
+                "path": "/v2.0/tenant/properties",
                 "description": "Get tenant properties",
                 "params": {},
                 "body": {},
             },
             "updateTenantProperties": {
                 "method": "PUT",
-                "path": "/v2.0/tenantproperties",
+                "path": "/v2.0/tenant/properties",
                 "description": "Update tenant properties",
                 "params": {},
                 "body": {},
@@ -1686,7 +1694,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getFirstFactorPolicyConfig": {
                 "method": "GET",
-                "path": "/v1.0/tenantpolicyconfig",
+                "path": "/v1.0/config/firstfactorpolicy",
                 "description": "Get first-factor authentication policy configuration",
                 "params": {},
                 "body": {},
@@ -1699,7 +1707,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listAttributes": {
                 "method": "GET",
-                "path": "/v2.0/attributes",
+                "path": "/v1.0/attributefunctions",
                 "description": "Get all attribute functions",
                 "params": {},
                 "body": {},
@@ -1921,7 +1929,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getAuthenticatorClients": {
                 "method": "GET",
-                "path": "/v1.0/authenticatorclients",
+                "path": "/v1.0/authenticators/clients",
                 "description": "Get configured authenticator clients",
                 "params": {},
                 "body": {},
@@ -1934,7 +1942,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getRecaptchaConfig": {
                 "method": "GET",
-                "path": "/v1.0/recaptcha",
+                "path": "/config/v1.0/recaptcha",
                 "description": "List reCAPTCHA configuration",
                 "params": {},
                 "body": {},
@@ -1995,21 +2003,21 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listWebhooks": {
                 "method": "GET",
-                "path": "/v1.0/webhooks",
+                "path": "/config/v1.0/webhooks",
                 "description": "List configured webhooks",
                 "params": {},
                 "body": {},
             },
             "createWebhook": {
                 "method": "POST",
-                "path": "/v1.0/webhooks",
+                "path": "/config/v1.0/webhooks",
                 "description": "Create a webhook subscription",
                 "params": {},
                 "body": {},
             },
             "getWebhook": {
                 "method": "GET",
-                "path": "/v1.0/webhooks/{id}",
+                "path": "/config/v1.0/webhooks/{id}",
                 "description": "Get a specific webhook",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Webhook ID"},
@@ -2018,7 +2026,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "updateWebhook": {
                 "method": "PUT",
-                "path": "/v1.0/webhooks/{id}",
+                "path": "/config/v1.0/webhooks/{id}",
                 "description": "Update a webhook",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Webhook ID"},
@@ -2027,7 +2035,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
             },
             "deleteWebhook": {
                 "method": "DELETE",
-                "path": "/v1.0/webhooks/{id}",
+                "path": "/config/v1.0/webhooks/{id}",
                 "description": "Delete a webhook",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Webhook ID"},
@@ -2066,14 +2074,14 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listCampaignConfigs": {
                 "method": "GET",
-                "path": "/v2.0/campaigns/configurations",
+                "path": "/v2.0/campaigns",
                 "description": "List certification campaign configurations",
                 "params": {},
                 "body": {},
             },
             "getCampaignConfig": {
                 "method": "GET",
-                "path": "/v2.0/campaigns/configurations/{id}",
+                "path": "/v2.0/campaigns/{id}",
                 "description": "Get a specific campaign configuration",
                 "params": {
                     "id": {"type": "string", "required": True, "description": "Campaign config ID"},
@@ -2088,7 +2096,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listCampaignInstances": {
                 "method": "GET",
-                "path": "/v2.0/campaigns/instances",
+                "path": "/v2.0/instances",
                 "description": "List campaign instances",
                 "params": {},
                 "body": {},
@@ -2101,10 +2109,10 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listCampaignAssignments": {
                 "method": "GET",
-                "path": "/v2.0/campaigns/assignments",
+                "path": "/v2.0/instances/{id}/assignments",
                 "description": "List campaign assignments by instance ID",
                 "params": {
-                    "instanceId": {"type": "string", "required": True, "description": "Campaign instance ID"},
+                    "id": {"type": "string", "required": True, "description": "Campaign instance ID"},
                 },
                 "body": {},
             },
@@ -2116,9 +2124,11 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getCampaignStats": {
                 "method": "GET",
-                "path": "/v2.0/campaigns/statistics",
+                "path": "/v2.0/instances/{instanceId}/assignments/resources",
                 "description": "Get campaign assignment/resource statistics",
-                "params": {},
+                "params": {
+                    "instanceId": {"type": "string", "required": True, "description": "Campaign instance ID"},
+                },
                 "body": {},
             },
         },
@@ -2133,7 +2143,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listCertificates": {
                 "method": "GET",
-                "path": "/v1.0/certificates",
+                "path": "/v1.0/personalcert",
                 "description": "Get personal certificates",
                 "params": {},
                 "body": {},
@@ -2146,7 +2156,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listPushCredentials": {
                 "method": "GET",
-                "path": "/v1.0/pushcredentials",
+                "path": "/config/v1.0/push-notification/credentials",
                 "description": "Get all push credentials for the tenant",
                 "params": {},
                 "body": {},
@@ -2159,9 +2169,11 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getEmailSuppression": {
                 "method": "GET",
-                "path": "/v1.0/emailsuppression",
+                "path": "/v1.0/notification/suppression/email/{emailAddress}",
                 "description": "Get email suppression list",
-                "params": {},
+                "params": {
+                    "emailAddress": {"type": "string", "required": True, "description": "Email address to check suppression for"},
+                },
                 "body": {},
             },
         },
@@ -2198,14 +2210,14 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "createAdminEntitlement": {
                 "method": "POST",
-                "path": "/v1.0/adminentitlements",
+                "path": "/v1.0/admin/entitlements",
                 "description": "Create an admin entitlement",
                 "params": {},
                 "body": {},
             },
             "listAdminEntitlements": {
                 "method": "GET",
-                "path": "/v1.0/adminentitlements",
+                "path": "/v1.0/admin/entitlements",
                 "description": "List admin entitlements",
                 "params": {},
                 "body": {},
@@ -2246,7 +2258,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listAdapters": {
                 "method": "GET",
-                "path": "/v1.0/adapters",
+                "path": "/config/v1.0/profiles",
                 "description": "Get adapter profiles",
                 "params": {},
                 "body": {},
@@ -2259,9 +2271,11 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "findProvisioningPolicy": {
                 "method": "GET",
-                "path": "/v1.0/provisioning/policies",
+                "path": "/v1.0/prov/policy/{application}",
                 "description": "Find provisioning policies",
-                "params": {},
+                "params": {
+                    "application": {"type": "string", "required": True, "description": "Application ID"},
+                },
                 "body": {},
             },
         },
@@ -2285,7 +2299,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "getSessionExchangeConfig": {
                 "method": "GET",
-                "path": "/v1.0/sessionexchangeconfig",
+                "path": "/v1.0/config/sessionexchange",
                 "description": "Get session exchange configuration",
                 "params": {},
                 "body": {},
@@ -2324,7 +2338,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listDeviceManagers": {
                 "method": "GET",
-                "path": "/v1.0/devicemanager",
+                "path": "/config/v1.0/mdm/device-managers",
                 "description": "List device manager configurations",
                 "params": {},
                 "body": {},
@@ -2337,7 +2351,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "listSmartcardProviders": {
                 "method": "GET",
-                "path": "/v1.0/smartcardproviders",
+                "path": "/config/v1.0/smartcard-providers",
                 "description": "List smartcard and X.509 certificate providers",
                 "params": {},
                 "body": {},
@@ -2350,7 +2364,7 @@ VERIFY_API_SCHEMA: dict[str, dict[str, Any]] = {
         "endpoints": {
             "deleteSmartcardDevice": {
                 "method": "DELETE",
-                "path": "/v1.0/smartcardproviders/{providerId}/devices/{deviceId}",
+                "path": "/config/v1.0/smartcard-providers/{providerId}/devices/{deviceId}",
                 "description": "Delete a smartcard/certificate device",
                 "params": {
                     "providerId": {"type": "string", "required": True, "description": "Provider ID"},
@@ -2428,9 +2442,20 @@ class VerifyDiscovery:
         category: str | None = None,
         method: str | None = None,
     ) -> list[VerifyEndpoint]:
-        """Search endpoints by keyword, optionally filtered by category and method."""
+        """Search endpoints by keyword, optionally filtered by category and method.
+
+        Results are ranked by relevance:
+          - Score 4: exact endpoint_id match
+          - Score 3: query matches a whole word in endpoint_id
+          - Score 2: query matches a whole word in path or description
+          - Score 1: substring match anywhere
+        """
+        import re
+
         query_lower = query.lower()
-        results = []
+        word_pattern = re.compile(r'\b' + re.escape(query_lower) + r'\b', re.IGNORECASE)
+        scored: list[tuple[int, VerifyEndpoint]] = []
+
         for ep in self._endpoints.values():
             # Category filter
             if category and category.lower() not in ep.category.lower():
@@ -2438,11 +2463,26 @@ class VerifyDiscovery:
             # Method filter
             if method and method.upper() != ep.method:
                 continue
-            # Keyword match against id, path, description, category
-            searchable = f"{ep.endpoint_id} {ep.path} {ep.description} {ep.category}".lower()
-            if query_lower in searchable:
-                results.append(ep)
-        return results
+
+            # Relevance scoring
+            score = 0
+            if query_lower == ep.endpoint_id.lower():
+                score = 4  # exact id match
+            elif word_pattern.search(ep.endpoint_id):
+                score = 3  # whole-word match in id
+            elif word_pattern.search(ep.path) or word_pattern.search(ep.description):
+                score = 2  # whole-word match in path/description
+            else:
+                searchable = f"{ep.endpoint_id} {ep.path} {ep.description} {ep.category}".lower()
+                if query_lower in searchable:
+                    score = 1  # substring match
+
+            if score > 0:
+                scored.append((score, ep))
+
+        # Sort by score descending, then by endpoint_id for stability
+        scored.sort(key=lambda x: (-x[0], x[1].endpoint_id))
+        return [ep for _, ep in scored]
 
     def get_endpoint(self, endpoint_id: str) -> VerifyEndpoint | None:
         """Get a specific endpoint by its ID."""

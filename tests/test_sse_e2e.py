@@ -2,7 +2,7 @@
 """
 tests/test_sse_e2e.py
 End-to-end SSE (HTTP) transport test for the Verify MCP Server.
-Starts the server on port 8005, sends MCP messages over SSE, checks results.
+Starts the server on port 8004, sends MCP messages over SSE, checks results.
 """
 import asyncio
 import json
@@ -15,7 +15,7 @@ import threading
 import time
 import httpx
 
-PORT = 8005
+PORT = 8004
 BASE = f"http://localhost:{PORT}"
 
 # ── helpers ──────────────────────────────────────────────────────────────────

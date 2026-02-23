@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 SERVER_NAME = "Verify MCP Server"
 SERVER_VERSION = "1.0.0"
 SSE_HOST = "0.0.0.0"
-SSE_PORT = int(os.getenv("MCP_PORT", "8005"))
+SSE_PORT = int(os.getenv("MCP_PORT", "8004"))
 
 # Instructions shown to the LLM at the start of a session
 SERVER_INSTRUCTIONS = """\
