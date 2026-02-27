@@ -11,3 +11,6 @@ nohup.out
 .vscode/
 workspace_config.yaml
 .github/copilot-instructions.md
+README_old.md
+CLEANUP_SUMMARY.txt
+TEAM_FRAMEWORK.txt
