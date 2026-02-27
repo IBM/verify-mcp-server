@@ -1,4 +1,4 @@
-"""Entry point for running the MCP server."""
+""""""
 
 from .server import main
 

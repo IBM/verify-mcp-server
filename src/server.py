@@ -1,18 +1,4 @@
-"""IBM Security Verify MCP Server — FastMCP bootstrap with API-key auth.
-
-Wires together config, auth, HTTP client, discovery, and tools into a
-single MCP server that supports both stdio and SSE transports.
-
-SSE mode is protected by API-key authentication (same model as the
-GDP MCP Server — "Model B: Admin-Managed Key Store").
-
-Usage:
-  # stdio mode (default — for Claude Desktop / VS Code)
-  python -m src
-
-  # SSE mode (HTTP server on port 8004)
-  MCP_TRANSPORT=sse python -m src
-"""
+"""IBM Security Verify MCP Server."""
 
 from __future__ import annotations
 
@@ -46,29 +32,7 @@ SSE_HOST = "0.0.0.0"
 SSE_PORT = int(os.getenv("MCP_PORT", "8004"))
 
 # Instructions shown to the LLM at the start of a session
-SERVER_INSTRUCTIONS = """\
-You are connected to the IBM Security Verify MCP Server.
-
-IBM Security Verify is IBM's cloud-native Identity-as-a-Service (IDaaS)
-platform covering user lifecycle management, SSO, MFA, adaptive access,
-federation, and data privacy & consent.
-
-Available tools:
-  1. verify_list_categories — list all API categories and endpoint counts
-  2. verify_discover        — search endpoints by keyword / category / method
-  3. verify_get_api_details — get parameter schema for a specific endpoint
-  4. verify_execute         — execute any Verify API endpoint
-
-Workflow:
-  Step 1: Use verify_list_categories or verify_discover to find endpoints
-  Step 2: Use verify_get_api_details to understand the parameters
-  Step 3: Use verify_execute to call the endpoint
-
-Tips:
-  - SCIM endpoints use /v2.0/Users and /v2.0/Groups with SCIM filter syntax
-  - Path parameters like {id} are auto-substituted from params
-  - Always check verify_get_api_details for required fields before executing
-"""
+SERVER_INSTRUCTIONS = "IBM Security Verify MCP Server."
 
 # ── Singleton key store (initialised once, shared by middleware + admin) ──
 _key_store: KeyStore | None = None

@@ -14,3 +14,7 @@ workspace_config.yaml
 README_old.md
 CLEANUP_SUMMARY.txt
 TEAM_FRAMEWORK.txt
+deploy/
+tests/
+image/
+container/
