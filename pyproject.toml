@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "verify-mcp-server"
+version = "2.0.0"
+description = "MCP Server for IBM Security Verify — 210+ API endpoints, 6 report prompts, 4 resources, auto-completions"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Anuj Shrivastava", email = "ashrivastava@in.ibm.com"}
+]
+
+dependencies = [
+    "mcp>=1.0.0",
+    "httpx>=0.25.0",
+    "python-dotenv>=1.0.0",
+    "starlette>=0.27.0",
+    "uvicorn[standard]>=0.24.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
