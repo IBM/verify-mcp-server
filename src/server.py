@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import sys
+from contextlib import asynccontextmanager
 
 from mcp.server.fastmcp import FastMCP
 from starlette.applications import Starlette
@@ -264,6 +265,14 @@ def main() -> None:
         else:
             mcp_app = mcp.sse_app()
 
+        # Lifespan: initialise the MCP session manager's task group
+        # so streamable-http requests don't fail with "Task group not initialized".
+        @asynccontextmanager
+        async def lifespan(app):
+            async with mcp.session_manager.run():
+                logger.info("MCP session manager started")
+                yield
+
         # Compose Starlette app: admin routes + health + MCP transport
         app = Starlette(
             routes=[
@@ -275,6 +284,7 @@ def main() -> None:
                 Mount("/", app=mcp_app),
             ],
             middleware=[Middleware(APIKeyMiddleware)],
+            lifespan=lifespan,
         )
 
         ks = _get_key_store()
