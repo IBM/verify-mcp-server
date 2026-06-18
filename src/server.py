@@ -1,12 +1,21 @@
-"""IBM Security Verify MCP Server."""
+"""IBM Security Verify MCP Server — v2.0.
+
+V2 additions over v1:
+  - Streamable HTTP transport (MCP 2025-11-25)
+  - MCP Resources (4), Prompts (6), Completions
+  - Tool annotations (readOnlyHint, destructiveHint, etc.)
+  - Progress notifications + MCP logging
+  - TLS support (self-signed or custom certs)
+  - Stateless HTTP for scalable deployments
+"""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
 import sys
+from contextlib import asynccontextmanager
 
 from mcp.server.fastmcp import FastMCP
 from starlette.applications import Starlette
@@ -18,21 +27,30 @@ from starlette.routing import Mount, Route
 
 from .auth import VerifyAuth
 from .client import VerifyClient
+from .completions import register_completions
 from .config import VerifyConfig
 from .discovery import VerifyDiscovery
 from .keystore import KeyStore
+from .prompts import register_prompts
+from .resources import register_resources
 from .tools import register_tools
 
 logger = logging.getLogger(__name__)
 
 # Server metadata
 SERVER_NAME = "Verify MCP Server"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "2.0.0"
 SSE_HOST = "0.0.0.0"
 SSE_PORT = int(os.getenv("MCP_PORT", "8004"))
 
 # Instructions shown to the LLM at the start of a session
-SERVER_INSTRUCTIONS = "IBM Security Verify MCP Server."
+SERVER_INSTRUCTIONS = (
+    "IBM Security Verify MCP Server. "
+    "Provides access to 210+ IBM Security Verify API endpoints for identity, "
+    "access, MFA, federation, consent, and governance management. "
+    "Workflow: verify_discover → verify_get_api_details → verify_execute. "
+    "Use verify_list_categories to browse the full API surface."
+)
 
 # ── Singleton key store (initialised once, shared by middleware + admin) ──
 _key_store: KeyStore | None = None
@@ -191,23 +209,34 @@ def create_server() -> tuple[FastMCP, VerifyClient]:
         len(discovery.categories),
     )
 
-    # Create FastMCP server (host/port used for SSE transport)
-    mcp = FastMCP(
-        SERVER_NAME,
-        instructions=SERVER_INSTRUCTIONS,
-        host=SSE_HOST,
-        port=SSE_PORT,
-    )
+    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
 
-    # Register the four meta-tools
+    # Create FastMCP server with v2 capabilities
+    mcp_kwargs: dict = {
+        "instructions": SERVER_INSTRUCTIONS,
+        "host": SSE_HOST,
+        "port": SSE_PORT,
+    }
+    # Enable stateless HTTP for streamable-http transport
+    if transport == "streamable-http":
+        mcp_kwargs["stateless_http"] = True
+
+    mcp = FastMCP(SERVER_NAME, **mcp_kwargs)
+
+    # Register v2 components: tools, prompts, resources, completions
     register_tools(mcp, client, discovery)
-    logger.info("Registered %d MCP tools", 4)
+    register_prompts(mcp)
+    register_resources(mcp, config, discovery)
+    register_completions(mcp, discovery)
+    logger.info(
+        "Registered: 4 tools, 6 prompts, 4 resources, completions enabled"
+    )
 
     return mcp, client
 
 
 def main() -> None:
-    """Entry point — run the MCP server in stdio or SSE mode."""
+    """Entry point — run the MCP server in stdio, SSE, or streamable-http mode."""
     # Configure logging
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
@@ -227,23 +256,39 @@ def main() -> None:
         transport,
     )
 
-    if transport == "sse":
+    if transport in ("sse", "streamable-http"):
         import uvicorn
 
-        # Build the SSE ASGI app from FastMCP
-        sse_app = mcp.sse_app()
+        # Build the appropriate ASGI app from FastMCP
+        if transport == "streamable-http":
+            mcp_app = mcp.streamable_http_app()
+        else:
+            mcp_app = mcp.sse_app()
 
-        # Compose Starlette app: admin routes + health + MCP SSE transport
+        # Lifespan: initialise the MCP session manager's task group
+        # so streamable-http requests don't fail with "Task group not initialized".
+        # session_manager is only available after streamable_http_app() — skip for SSE.
+        @asynccontextmanager
+        async def lifespan(app):
+            if transport == "streamable-http":
+                async with mcp.session_manager.run():
+                    logger.info("MCP session manager started")
+                    yield
+            else:
+                yield
+
+        # Compose Starlette app: admin routes + health + MCP transport
         app = Starlette(
             routes=[
                 Route("/health", health, methods=["GET"]),
                 Route("/admin/keys", admin_create_key, methods=["POST"]),
                 Route("/admin/keys", admin_list_keys, methods=["GET"]),
                 Route("/admin/keys/{prefix}", admin_revoke_key, methods=["DELETE"]),
-                # Mount the MCP SSE transport under /
-                Mount("/", app=sse_app),
+                # Mount the MCP transport under /
+                Mount("/", app=mcp_app),
             ],
             middleware=[Middleware(APIKeyMiddleware)],
+            lifespan=lifespan,
         )
 
         ks = _get_key_store()
@@ -251,15 +296,64 @@ def main() -> None:
             logger.info("API key authentication ENABLED (%d key(s) loaded)", len(ks.list_keys()))
         else:
             logger.warning(
-                "No API keys configured — SSE endpoint is OPEN. "
-                "Generate a key: curl -X POST http://localhost:%d/admin/keys -H 'Content-Type: application/json' -d '{\"user\":\"admin@ibm.com\"}'",
+                "No API keys configured — endpoint is OPEN. "
+                "Generate a key: curl -X POST http://localhost:%d/admin/keys "
+                "-H 'Content-Type: application/json' -d '{\"user\":\"admin@ibm.com\"}'",
                 SSE_PORT,
             )
 
-        logger.info("SSE server listening on %s:%d", SSE_HOST, SSE_PORT)
-        uvicorn.run(app, host=SSE_HOST, port=SSE_PORT, log_level=log_level.lower())
+        # TLS support
+        ssl_kwargs: dict = {}
+        ssl_certfile = os.getenv("MCP_SSL_CERTFILE")
+        ssl_keyfile = os.getenv("MCP_SSL_KEYFILE")
+        if ssl_certfile and ssl_keyfile:
+            ssl_kwargs["ssl_certfile"] = ssl_certfile
+            ssl_kwargs["ssl_keyfile"] = ssl_keyfile
+            logger.info("TLS enabled (custom certs)")
+        elif os.getenv("MCP_SSL_SELF_SIGNED", "false").lower() == "true":
+            cert, key = _generate_self_signed_cert()
+            ssl_kwargs["ssl_certfile"] = cert
+            ssl_kwargs["ssl_keyfile"] = key
+            logger.info("TLS enabled (self-signed)")
+
+        logger.info(
+            "%s server listening on %s:%d",
+            transport.upper(),
+            SSE_HOST,
+            SSE_PORT,
+        )
+        uvicorn.run(
+            app,
+            host=SSE_HOST,
+            port=SSE_PORT,
+            log_level=log_level.lower(),
+            **ssl_kwargs,
+        )
     else:
         mcp.run(transport="stdio")
+
+
+def _generate_self_signed_cert() -> tuple[str, str]:
+    """Generate a self-signed TLS certificate for development use."""
+    import subprocess
+    import tempfile
+
+    cert_dir = tempfile.mkdtemp(prefix="verify-mcp-")
+    cert_path = os.path.join(cert_dir, "cert.pem")
+    key_path = os.path.join(cert_dir, "key.pem")
+
+    subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048",
+            "-keyout", key_path, "-out", cert_path,
+            "-days", "365", "-nodes",
+            "-subj", "/CN=verify-mcp-server",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    logger.info("Self-signed cert generated: %s", cert_path)
+    return cert_path, key_path
 
 
 if __name__ == "__main__":

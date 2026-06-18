@@ -24,7 +24,7 @@ import json
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from .client import VerifyClient
 from .discovery import VerifyDiscovery, VerifyEndpoint
@@ -110,12 +110,21 @@ def register_tools(
 
     # ── Tool 1: Discover endpoints ──────────────────────────────────
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations={
+            "title": "Search Verify APIs",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    )
     async def verify_discover(
         query: str,
         category: str | None = None,
         method: str | None = None,
         offset: int = 0,
+        ctx: Context | None = None,
     ) -> str:
         """Search IBM Security Verify API endpoints by keyword, category, or HTTP method.
 
@@ -134,6 +143,8 @@ def register_tools(
             JSON with matching endpoints grouped by category.  ≤3 matches
             include full parameter/body details.  >25 matches are paginated.
         """
+        if ctx:
+            await ctx.report_progress(0, 1)
         results = discovery.search(query, category=category, method=method)
         if not results:
             return json.dumps({
@@ -185,12 +196,22 @@ def register_tools(
             if (offset + DEFAULT_PAGE_SIZE) < total_matches:
                 response["next_offset"] = offset + DEFAULT_PAGE_SIZE
 
+        if ctx:
+            await ctx.report_progress(1, 1)
         return json.dumps(response)
 
     # ── Tool 2: List categories ─────────────────────────────────────
 
-    @mcp.tool()
-    async def verify_list_categories() -> str:
+    @mcp.tool(
+        annotations={
+            "title": "Browse API Categories",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    )
+    async def verify_list_categories(ctx: Context | None = None) -> str:
         """List all IBM Security Verify API categories grouped by domain.
 
         Use this tool to browse the full API surface and identify relevant
@@ -235,8 +256,16 @@ def register_tools(
 
     # ── Tool 3: Get API details ─────────────────────────────────────
 
-    @mcp.tool()
-    async def verify_get_api_details(endpoint_id: str) -> str:
+    @mcp.tool(
+        annotations={
+            "title": "Inspect API Parameters",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    )
+    async def verify_get_api_details(endpoint_id: str, ctx: Context | None = None) -> str:
         """Get the full parameter schema for a specific IBM Security Verify API endpoint.
 
         Call this AFTER using verify_discover to find the endpoint_id.
@@ -265,11 +294,20 @@ def register_tools(
 
     # ── Tool 4: Execute API endpoint ────────────────────────────────
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations={
+            "title": "Execute Verify API",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+    )
     async def verify_execute(
         endpoint_id: str,
         params: dict[str, Any] | None = None,
         body: dict[str, Any] | None = None,
+        ctx: Context | None = None,
     ) -> str:
         """Execute any IBM Security Verify API endpoint.
 
@@ -298,6 +336,10 @@ def register_tools(
         # Resolve path parameters
         resolved_path, remaining_params = _resolve_path(ep.path, params)
 
+        if ctx:
+            await ctx.report_progress(0, 2)
+            await ctx.info(f"Executing {ep.method} {resolved_path}")
+
         # Content-Type for SCIM is handled automatically in VerifyClient
         content_type = None
 
@@ -309,9 +351,13 @@ def register_tools(
                 body=body if body else None,
                 content_type=content_type,
             )
+            if ctx:
+                await ctx.report_progress(2, 2)
             output = json.dumps(result, indent=2, default=str)
             return _truncate(output)
         except Exception as e:
+            if ctx:
+                await ctx.error(f"Error: {e}")
             logger.exception("Error executing %s %s", ep.method, resolved_path)
             return json.dumps({
                 "error": str(e),
