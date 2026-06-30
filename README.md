@@ -418,7 +418,7 @@ verify-mcp-server/
 ## Contact
 
 **Maintainer:** Anuj Shrivastava — AI Engineer, US Industry Market - Service Engineering  
-📧 [ashrivastava@ibm.com](mailto:ashrivastava@ibm.com)  
+📧 [ahsrivastava@in.ibm.com](mailto:ahsrivastava@in.ibm.com)  
 For demos, integration help, or collaboration — reach out via email.
 
 ---

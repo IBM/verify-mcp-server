@@ -8,7 +8,7 @@ If you discover a security vulnerability in this project, please report it priva
 
 ### How to Report
 
-1. **Email:** ashrivastava@ibm.com
+1. **Email:** ahsrivastava@in.ibm.com
 2. **Subject:** [SECURITY] Verify MCP Server - Brief Description
 3. **Include:**
    - Type of vulnerability
