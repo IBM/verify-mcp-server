@@ -113,7 +113,7 @@ Commit message format:
 ## Questions?
 
 - Open an issue: <https://github.com/IBM/verify-mcp-server/issues>
-- Email the maintainer: <ahsrivastava@in.ibm.com>
+- Email the maintainer: <ashrivastava@in.ibm.com>
 
 ## License
 
