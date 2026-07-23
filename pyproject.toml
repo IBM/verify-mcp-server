@@ -21,6 +21,9 @@ dependencies = [
     "uvicorn[standard]>=0.24.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

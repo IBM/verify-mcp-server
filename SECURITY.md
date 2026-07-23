@@ -29,19 +29,27 @@ When deploying this project:
 1. **Credentials Management**
    - Never commit API tokens, passwords, or secrets to version control
    - Use environment variables (`.env` files) for all sensitive configuration
+   - Set a strong `MCP_ADMIN_TOKEN` before exposing HTTP transports
    - Rotate credentials regularly
 
 2. **Network Security**
    - Use HTTPS for all API communication
+   - Default bind is `127.0.0.1`; set `MCP_HOST=0.0.0.0` only when you intend to publish the port
    - Deploy behind a firewall or VPN for internal use
    - Restrict network access to Verify endpoints
 
 3. **Access Control**
+   - HTTP MCP routes fail closed until at least one API key exists
+   - `/admin/keys` requires `MCP_ADMIN_TOKEN` (do not rely on localhost IP checks)
    - Use unique API keys per user/client
    - Revoke keys immediately when no longer needed
    - Follow least privilege principle
 
-4. **Monitoring**
+4. **Path safety**
+   - `verify_execute` only calls catalog `endpoint_id` values
+   - Path parameters are single-segment and URL-encoded; `../` and `/` are rejected
+
+5. **Monitoring**
    - Monitor for unusual API usage patterns
    - Review server logs regularly
    - Set up alerts for authentication failures

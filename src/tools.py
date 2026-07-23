@@ -86,18 +86,40 @@ def _format_endpoint_detail(ep: VerifyEndpoint) -> dict[str, Any]:
 def _resolve_path(path_template: str, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Replace {placeholders} in path with values from params.
 
+    Path segment values are URL-encoded and rejected if they contain
+    traversal or separator characters (``..``, ``/``, ``\\``, NUL).
+    After substitution the resolved path must stay under the template
+    prefix (text before the first ``{``).
+
     Returns the resolved path and the remaining params that were
     NOT consumed as path parameters.
+
+    Raises:
+        ValueError: if a path parameter would escape the catalog template.
     """
     import re
+    from urllib.parse import quote
 
     remaining = dict(params)
     resolved = path_template
     for match in re.findall(r"\{(\w+)\}", path_template):
-        if match in remaining:
-            resolved = resolved.replace(f"{{{match}}}", str(remaining.pop(match)))
-        else:
+        if match not in remaining:
             logger.warning("Path parameter '%s' not provided for %s", match, path_template)
+            continue
+        value = str(remaining.pop(match))
+        if any(bad in value for bad in ("..", "/", "\\", "\x00")):
+            raise ValueError(
+                f"Invalid path parameter '{match}': value must be a single path segment"
+            )
+        resolved = resolved.replace(f"{{{match}}}", quote(value, safe=""))
+
+    if ".." in resolved.split("/"):
+        raise ValueError("Resolved path must not contain '..' segments")
+
+    prefix = path_template.split("{", 1)[0]
+    if prefix and not resolved.startswith(prefix):
+        raise ValueError("Resolved path escaped the catalog template prefix")
+
     return resolved, remaining
 
 
@@ -333,8 +355,17 @@ def register_tools(
         params = params or {}
         body = body or {}
 
-        # Resolve path parameters
-        resolved_path, remaining_params = _resolve_path(ep.path, params)
+        try:
+            resolved_path, remaining_params = _resolve_path(ep.path, params)
+        except ValueError as e:
+            if ctx:
+                await ctx.error(f"Invalid path parameters: {e}")
+            return json.dumps({
+                "error": str(e),
+                "endpoint": endpoint_id,
+                "method": ep.method,
+                "path_template": ep.path,
+            })
 
         if ctx:
             await ctx.report_progress(0, 2)

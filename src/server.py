@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
 import sys
 from contextlib import asynccontextmanager
 
@@ -40,7 +41,8 @@ logger = logging.getLogger(__name__)
 # Server metadata
 SERVER_NAME = "Verify MCP Server"
 SERVER_VERSION = "2.0.0"
-SSE_HOST = "0.0.0.0"
+# Default to loopback. Set MCP_HOST=0.0.0.0 explicitly for container publish.
+SSE_HOST = os.getenv("MCP_HOST", "127.0.0.1")
 SSE_PORT = int(os.getenv("MCP_PORT", "8004"))
 
 # Instructions shown to the LLM at the start of a session
@@ -69,33 +71,45 @@ def _get_key_store() -> KeyStore:
 # ═══════════════════════════════════════════════════════════════════════
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
-    """Require a valid API key in the Authorization header for /sse.
+    """Require a valid API key for MCP HTTP routes.
 
-    Public (unauthenticated) routes:
-        /health            — liveness probe
-        /admin/keys        — admin key management (localhost-only)
+    Public:
+        /health — liveness probe
 
-    Protected routes:
-        /sse               — MCP SSE transport (requires valid API key)
-        /messages          — MCP message posting (requires valid API key)
+    Admin (MCP_ADMIN_TOKEN, not API keystore):
+        /admin/keys — skipped here; handlers enforce admin token
+
+    Protected:
+        /sse, /messages, and other MCP routes — require a keystore API key
+
+    Fail-closed: if the keystore is empty, MCP routes return 503 (no open first-run).
     """
 
-    OPEN_PREFIXES = ("/health", "/admin/keys")
+    OPEN_PREFIXES = ("/health",)
+    ADMIN_PREFIXES = ("/admin/keys",)
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
-        # Allow public endpoints through without auth
         if any(path.startswith(prefix) for prefix in self.OPEN_PREFIXES):
             return await call_next(request)
 
-        # Everything else requires a valid API key
+        # Admin routes use MCP_ADMIN_TOKEN (checked in handlers), not keystore keys
+        if any(path.startswith(prefix) for prefix in self.ADMIN_PREFIXES):
+            return await call_next(request)
+
         ks = _get_key_store()
 
-        # If no keys have been generated yet, allow open access
-        # (first-run experience — admin should generate a key immediately)
         if not ks.has_any_keys():
-            return await call_next(request)
+            return JSONResponse(
+                {
+                    "error": (
+                        "No API keys configured. Set MCP_ADMIN_TOKEN and POST /admin/keys "
+                        "to create a key before using MCP HTTP transports."
+                    ),
+                },
+                status_code=503,
+            )
 
         auth_header = request.headers.get("Authorization", "")
         if not auth_header:
@@ -104,7 +118,6 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
                 status_code=401,
             )
 
-        # Accept "Bearer <key>" or raw "<key>"
         raw_key = auth_header.removeprefix("Bearer ").strip()
         if not raw_key:
             return JSONResponse(
@@ -122,21 +135,48 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Admin Endpoints (localhost-only)
+#  Admin Endpoints (MCP_ADMIN_TOKEN required — not IP-based trust)
 # ═══════════════════════════════════════════════════════════════════════
 
-def _is_localhost(request: Request) -> bool:
-    """Return True if the request originates from localhost."""
-    client = request.client
-    if client is None:
+def _admin_authorized(request: Request) -> bool:
+    """Return True when request presents a valid MCP_ADMIN_TOKEN.
+
+    Does not trust request.client.host (broken behind reverse proxies).
+    """
+    admin_token = os.getenv("MCP_ADMIN_TOKEN", "").strip()
+    if not admin_token:
         return False
-    return client.host in ("127.0.0.1", "::1", "localhost")
+
+    candidates: list[str] = []
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header:
+        candidates.append(auth_header.removeprefix("Bearer ").strip())
+    x_admin = request.headers.get("X-Admin-Token", "").strip()
+    if x_admin:
+        candidates.append(x_admin)
+
+    for candidate in candidates:
+        if candidate and secrets.compare_digest(candidate, admin_token):
+            return True
+    return False
+
+
+def _admin_forbidden() -> JSONResponse:
+    return JSONResponse(
+        {
+            "error": (
+                "Admin endpoints require MCP_ADMIN_TOKEN "
+                "(Authorization: Bearer <token> or X-Admin-Token header)."
+            ),
+        },
+        status_code=403,
+    )
 
 
 async def admin_create_key(request: Request) -> JSONResponse:
-    """POST /admin/keys — Generate a new API key (localhost-only)."""
-    if not _is_localhost(request):
-        return JSONResponse({"error": "Admin endpoints are localhost-only"}, status_code=403)
+    """POST /admin/keys — Generate a new API key (admin token required)."""
+    if not _admin_authorized(request):
+        return _admin_forbidden()
     try:
         data = await request.json()
         user = data.get("user", "anonymous")
@@ -154,17 +194,17 @@ async def admin_create_key(request: Request) -> JSONResponse:
 
 
 async def admin_list_keys(request: Request) -> JSONResponse:
-    """GET /admin/keys — List all API keys (prefixes only, localhost-only)."""
-    if not _is_localhost(request):
-        return JSONResponse({"error": "Admin endpoints are localhost-only"}, status_code=403)
+    """GET /admin/keys — List all API keys (prefixes only, admin token required)."""
+    if not _admin_authorized(request):
+        return _admin_forbidden()
     ks = _get_key_store()
     return JSONResponse({"keys": ks.list_keys()})
 
 
 async def admin_revoke_key(request: Request) -> JSONResponse:
-    """DELETE /admin/keys/{prefix} — Revoke an API key (localhost-only)."""
-    if not _is_localhost(request):
-        return JSONResponse({"error": "Admin endpoints are localhost-only"}, status_code=403)
+    """DELETE /admin/keys/{prefix} — Revoke an API key (admin token required)."""
+    if not _admin_authorized(request):
+        return _admin_forbidden()
     prefix = request.path_params["prefix"]
     ks = _get_key_store()
     if ks.revoke(prefix):
@@ -179,7 +219,8 @@ async def health(request: Request) -> JSONResponse:
         "status": "healthy",
         "server": SERVER_NAME,
         "version": SERVER_VERSION,
-        "auth_enabled": ks.has_any_keys(),
+        "keys_configured": ks.has_any_keys(),
+        "admin_token_configured": bool(os.getenv("MCP_ADMIN_TOKEN", "").strip()),
     })
 
 
@@ -292,14 +333,20 @@ def main() -> None:
         )
 
         ks = _get_key_store()
+        admin_set = bool(os.getenv("MCP_ADMIN_TOKEN", "").strip())
         if ks.has_any_keys():
             logger.info("API key authentication ENABLED (%d key(s) loaded)", len(ks.list_keys()))
         else:
             logger.warning(
-                "No API keys configured — endpoint is OPEN. "
-                "Generate a key: curl -X POST http://localhost:%d/admin/keys "
-                "-H 'Content-Type: application/json' -d '{\"user\":\"admin@ibm.com\"}'",
+                "No API keys configured — MCP HTTP routes return 503 until you create a key. "
+                "Set MCP_ADMIN_TOKEN, then: curl -X POST http://127.0.0.1:%d/admin/keys "
+                "-H 'Authorization: Bearer $MCP_ADMIN_TOKEN' "
+                "-H 'Content-Type: application/json' -d '{\"user\":\"admin@in.ibm.com\"}'",
                 SSE_PORT,
+            )
+        if not admin_set:
+            logger.warning(
+                "MCP_ADMIN_TOKEN is not set — /admin/keys will reject all admin requests"
             )
 
         # TLS support

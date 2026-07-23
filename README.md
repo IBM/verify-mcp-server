@@ -298,12 +298,16 @@ python -m src
 curl http://localhost:8004/health
 
 # Generate an API key (required for MCP client auth)
-curl -X POST http://localhost:8004/admin/keys \
+# Set a strong MCP_ADMIN_TOKEN in the environment first.
+export MCP_ADMIN_TOKEN='replace-with-a-long-random-secret'
+curl -X POST http://127.0.0.1:8004/admin/keys \
+  -H "Authorization: Bearer $MCP_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"user": "admin@ibm.com"}'
+  -d '{"user": "admin@in.ibm.com"}'
 
 # List keys
-curl http://localhost:8004/admin/keys
+curl http://127.0.0.1:8004/admin/keys \
+  -H "Authorization: Bearer $MCP_ADMIN_TOKEN"
 ```
 
 ---
@@ -319,7 +323,9 @@ curl http://localhost:8004/admin/keys
 | `API_CLIENT_SECRET` | Yes | — | API client secret |
 | `VERIFY_SSL` | No | `true` | Verify SSL certificates |
 | `MCP_TRANSPORT` | No | `stdio` | Transport: `stdio`, `sse`, or `streamable-http` (v2) |
+| `MCP_HOST` | No | `127.0.0.1` | Bind address for SSE / streamable-http (use `0.0.0.0` in containers) |
 | `MCP_PORT` | No | `8004` | HTTP port for SSE / streamable-http |
+| `MCP_ADMIN_TOKEN` | Yes for HTTP admin | — | Secret for `/admin/keys` (Bearer or `X-Admin-Token`). Required before you can mint API keys. |
 | `LOG_LEVEL` | No | `INFO` | Logging level |
 | `TLS_CERT` | No | — | Path to TLS certificate (v2) |
 | `TLS_KEY` | No | — | Path to TLS private key (v2) |
@@ -336,22 +342,27 @@ curl http://localhost:8004/admin/keys
 
 ## API Key Management
 
-All SSE/HTTP endpoints are protected by API key authentication via the keystore at `/data/keys.json`.
+SSE/HTTP MCP routes are **fail-closed**: with an empty keystore they return HTTP 503 until you mint a key. Admin routes require `MCP_ADMIN_TOKEN` (they do **not** trust client IP / localhost checks).
 
 ```bash
+export MCP_ADMIN_TOKEN='replace-with-a-long-random-secret'
+
 # Generate a new key
-curl -X POST http://localhost:8004/admin/keys \
+curl -X POST http://127.0.0.1:8004/admin/keys \
+  -H "Authorization: Bearer $MCP_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"user": "bob@ibm.com"}'
+  -d '{"user": "bob@in.ibm.com"}'
 
 # List all keys (prefix only)
-curl http://localhost:8004/admin/keys
+curl http://127.0.0.1:8004/admin/keys \
+  -H "Authorization: Bearer $MCP_ADMIN_TOKEN"
 
 # Revoke a key by prefix
-curl -X DELETE http://localhost:8004/admin/keys/<PREFIX>
+curl -X DELETE http://127.0.0.1:8004/admin/keys/<PREFIX> \
+  -H "Authorization: Bearer $MCP_ADMIN_TOKEN"
 ```
 
-Admin endpoints are **localhost-only** — they cannot be accessed remotely.
+Then call MCP routes with `Authorization: Bearer <api_key>` from the create response.
 
 ---
 
